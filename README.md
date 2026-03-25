@@ -1,6 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/marcofailli/Soak-My-Bed/main/banner.png" width="100%" alt="Soak My Bed Banner">
-</p>
+  <img src="https://raw.githubusercontent.com/marcofailli/Soak-My-Bed/main/banner.png?v=2" width="100%" alt="Soak My Bed Banner"></p>
 
 ---
 
