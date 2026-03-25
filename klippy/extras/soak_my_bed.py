@@ -10,16 +10,16 @@ class SoakMyBed:
         self.printer = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
         
-        # Comandi Utente
+        # User Commands
         self.gcode.register_command('SOAK_MY_BED', self.cmd_SOAK_MY_BED)
         self.gcode.register_command('ABORT_SOAK', self.cmd_ABORT_SOAK)
         
-        # Comandi Interni
+        # Internal Commands
         self.gcode.register_command('_SOAK_AFTER_FIRST', self.cmd__SOAK_AFTER_FIRST)
         self.gcode.register_command('_SOAK_LOOP_EVAL', self.cmd__SOAK_LOOP_EVAL)
         self.gcode.register_command('_SOAK_LOOP_WAIT', self.cmd__SOAK_LOOP_WAIT)
         
-        # Variabili di stato
+        # State variables
         self.temp = 0.0
         self.duration_sec = 0.0
         self.heater = ""
@@ -31,7 +31,7 @@ class SoakMyBed:
         self.is_heating = False
         self.is_running = False
         
-        # Percorsi base
+        # Base paths
         self.save_dir = "/home/pi/printer_data/config/soak_data"
         self.plot_script_path = "/home/pi/soak-my-bed/scripts/plotter.py"
         self.klipper_python = "/home/pi/klippy-env/bin/python"
@@ -59,7 +59,7 @@ class SoakMyBed:
         else:
             self.sensor_name = f"heater_generic {self.heater}"
 
-        # Creazione file JSON con Data e Ora
+        # Create JSON file with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.json_path = os.path.join(self.save_dir, f"soak_{timestamp}.json")
 
@@ -85,12 +85,12 @@ class SoakMyBed:
             self.gcode.respond_info("No SOAK process is currently running.")
             return
         
-        # Abort immediato della logica
+        # Immediate logic abort
         self.is_running = False
         self.is_heating = False
         self.gcode.respond_info("!!! SOAK ABORTED BY USER !!!")
         
-        # Spegne il piatto in modo sicuro
+        # Turn off the heater safely
         self.gcode.run_script_from_command(f"SET_HEATER_TEMPERATURE HEATER={self.heater} TARGET=0")
 
     def cmd__SOAK_AFTER_FIRST(self, gcmd):
@@ -159,11 +159,11 @@ class SoakMyBed:
                 with open(self.json_path, "w") as f: json.dump(data, f)
         except: pass
 
-        # Calcolo dell'attesa senza usare G4 (non blocca la console)
+        # Calculate wait time without using G4 (does not block the console)
         mesh_time = time.time() - self.mesh_start_time
         wait_time = max(1.0, (math.ceil((mesh_time + 3.0) / 5.0) * 5.0) - mesh_time)
         
-        # Registra un timer asincrono in Klipper
+        # Register an async timer in Klipper
         reactor.register_timer(self._trigger_next_eval, eventtime + wait_time)
 
     def _trigger_next_eval(self, eventtime):
