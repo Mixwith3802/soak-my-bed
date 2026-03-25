@@ -43,7 +43,7 @@ The plugin operates by running successive `BED_MESH_CALIBRATE` cycles. After eac
 1. **Clone the repository** to your Klipper host (Raspberry Pi/BTT Pi):
     ```bash
     cd ~
-    git clone [https://github.com/marcofailli/soak-my-bed.git](https://github.com/marcofailli/soak-my-bed.git)
+    git clone https://github.com/marcofailli/soak-my-bed.git
     ```
 2. **Run the automated installer**:
    *(This step might take a while since we are installing system dependencies and Python plotting libraries like SciPy. Be patient!)*
@@ -65,8 +65,12 @@ The plugin operates by running successive `BED_MESH_CALIBRATE` cycles. After eac
 
 ### 🛠️ Usage
 
+Before running the script you will have to execute your usual homing routine (that might include `G28`, `QUAD_GANTRY_LEVEL`, ...).
+
 It is recommended to start the script with your printer cold, in equilibrium with ambient temperature, to actually evaluate its behavior when starting a fresh new print. 
 Heat soaking is a slow process that continues well after reaching your bed target temperature; a typical soak cycle lasts about 60 minutes... **Don't rush!**
+
+While meshing, KlipperScreen will probably prompt you to save the new `config`, just discard this message.
 
 #### Commands
 * `SOAK_MY_BED TEMPERATURE=100 DURATION=60`
@@ -78,7 +82,7 @@ Heat soaking is a slow process that continues well after reaching your bed targe
 * `ABORT_SOAK`
     * Stops the process immediately, turns off the heater, and triggers the generation of the GIF with the data collected up to that moment.
 
-*Note: Once the process is completed or aborted, you can find your animated GIF inside the `printer_data/config/soak_data` folder directly from the Mainsail/Fluidd web interface!*
+*Note: Once the process is completed or aborted, you can find your animated GIF (and the image of its final frame) inside the `printer_data/config/soak_data` folder directly from the Mainsail/Fluidd web interface!*
 
 ---
 <p align="center">
