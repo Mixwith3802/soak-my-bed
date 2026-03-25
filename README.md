@@ -44,16 +44,17 @@ The plugin operates by running successive `BED_MESH_CALIBRATE` cycles. After eac
     git clone [https://github.com/marcofailli/Soak-My-Bed.git](https://github.com/marcofailli/Soak-My-Bed.git)
     ```
 2. **Run the automated installer**:
+   (this step might take a while since we are installing the Python plotting libraries, be patient!)
     ```bash
     cd Soak-My-Bed
     chmod +x install.sh
     ./install.sh
     ```
-3. **Configure Klipper**: Add the following line anywhere in your `printer.cfg`:
+4. **Configure Klipper**: Add the following line anywhere in your `printer.cfg`:
     ```ini
     [soak_my_bed]
     ```
-4. **Restart Klipper**:
+5. **Restart Klipper**:
     ```bash
     sudo systemctl restart klipper
     ```
