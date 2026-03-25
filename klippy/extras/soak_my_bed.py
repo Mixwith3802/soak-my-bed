@@ -1,4 +1,3 @@
-import logging
 import time
 import math
 import os
@@ -9,143 +8,142 @@ class SoakMyBed:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
-        self.reactor = self.printer.get_reactor()
         
-        # --- Internal State ---
+        self.gcode.register_command('SOAK_MY_BED', self.cmd_SOAK_MY_BED)
+        self.gcode.register_command('ABORT_SOAK', self.cmd_ABORT_SOAK)
+        
+        self.gcode.register_command('_SOAK_AFTER_FIRST', self.cmd__SOAK_AFTER_FIRST)
+        self.gcode.register_command('_SOAK_LOOP_EVAL', self.cmd__SOAK_LOOP_EVAL)
+        self.gcode.register_command('_SOAK_LOOP_WAIT', self.cmd__SOAK_LOOP_WAIT)
+        
+        self.temp = 0.0
+        self.duration_sec = 0.0
+        self.heater = ""
+        self.sensor_name = ""
+        self.mesh_cmd = ""
+        self.script_start_time = 0.0
+        self.mesh_start_time = 0.0
+        self.soak_start_time = None
+        self.is_heating = True
         self.is_running = False
-        self.target_temp = 0.0
-        self.duration_sec = None
-        self.start_time = None
-        self.temp_reached_time = None
-        self.results = []
         
-        # Register the timer in the Klipper reactor
-        self.timer = self.reactor.register_timer(self._soak_tick)
-
-        # Register G-Code commands for the user
-        self.gcode.register_command("SOAK_MY_BED", self.cmd_SOAK_MY_BED,
-                                    help="Start bed thermal profiling")
-        self.gcode.register_command("CANCEL_SOAK", self.cmd_CANCEL_SOAK,
-                                    help="Stop profiling and generate results")
+        self.save_dir = "/home/pi/printer_data/config/soak_data"
+        self.json_path = os.path.join(self.save_dir, "soak_data.json")
+        self.plot_script_path = "/home/pi/soak-my-bed/scripts/plotter.py"
+        self.klipper_python = "/home/pi/klippy-env/bin/python"
 
     def cmd_SOAK_MY_BED(self, gcmd):
-        """Start the automated soaking process."""
         if self.is_running:
-            gcmd.respond_info("Soak My Bed is already running!")
+            self.gcode.respond_info("A SOAK procedure is already running!")
             return
 
-        # Fetch parameters from G-code command
-        self.target_temp = gcmd.get_float('TEMP', 0.0)
-        duration_min = gcmd.get_float('DURATION', -1.0)
+        self.temp = gcmd.get_float('TEMPERATURE', 60.0)
+        self.duration_sec = gcmd.get_float('DURATION', 10.0) * 60.0
+        self.heater = gcmd.get('HEATER', 'heater_bed')
         
-        # Convert duration to seconds if provided
-        self.duration_sec = duration_min * 60 if duration_min > 0 else None
-        self.start_time = time.time()
-        self.temp_reached_time = None
-        self.results = []
+        raw_mesh_cmd = gcmd.get('MESH_COMMAND', 'BED_MESH_CALIBRATE METHOD=rapid_scan')
+        raw_mesh_cmd = raw_mesh_cmd.strip('"\'')
+        
+        if "PROFILE=" not in raw_mesh_cmd.upper():
+            self.mesh_cmd = f"{raw_mesh_cmd} PROFILE=soak"
+        else:
+            self.mesh_cmd = raw_mesh_cmd
+
+        if self.heater in ['heater_bed', 'extruder']:
+            self.sensor_name = self.heater
+        else:
+            self.sensor_name = f"heater_generic {self.heater}"
+
+        try:
+            os.makedirs(self.save_dir, exist_ok=True)
+            with open(self.json_path, "w") as f:
+                json.dump([], f) 
+        except Exception as e:
+            self.gcode.respond_info(f"Storage error: {e}")
+
+        self.script_start_time = time.time()
+        self.soak_start_time = None
+        self.is_heating = True
         self.is_running = True
 
-        gcmd.respond_info(f"Soak My Bed: Process started. Target: {self.target_temp}C")
-        
-        # Set bed temperature (M140 does not wait, allowing the loop to start)
-        if self.target_temp > 0:
-            self.gcode.run_script_from_command(f"M140 S{self.target_temp}")
+        self.gcode.respond_info("Step 1: Running initial mesh...")
+        self.mesh_start_time = time.time()
+        self.gcode.run_script_from_command(f"{self.mesh_cmd}\n_SOAK_AFTER_FIRST")
 
-        # Trigger the first tick immediately
-        self.reactor.update_timer(self.timer, self.reactor.NOW)
-
-    def _soak_tick(self, eventtime):
-        """Main loop executed by the Klipper reactor timer."""
-        if not self.is_running:
-            return self.reactor.NEVER
-
-        current_time = time.time()
-        heater_bed = self.printer.lookup_object('heater_bed')
-        bed_status = heater_bed.get_status(current_time)
-        current_temp = bed_status['temperature']
-
-        # --- CHECK COMPLETION CONDITIONS ---
-        
-        # Case A: Fixed duration reached
-        if self.duration_sec and (current_time - self.start_time) >= self.duration_sec:
-            self._finalize_soak("Target duration reached.")
-            return self.reactor.NEVER
-        
-        # Case B: Smart stability (Target reached + 30 mins)
-        if self.target_temp > 0 and self.temp_reached_time is None:
-            if current_temp >= (self.target_temp - 0.5):
-                self.temp_reached_time = current_time
-                self.gcode.respond_info("Target temperature reached. Stability timer started (30m).")
-        
-        if self.temp_reached_time and (current_time - self.temp_reached_time) >= 1800:
-            self._finalize_soak("Thermal stability achieved (30m soak).")
-            return self.reactor.NEVER
-
-        # --- EXECUTE BED MESH ---
-        
-        # Measure mesh duration to optimize the next interval
-        mesh_start = time.time()
-        self.gcode.run_script_from_command("BED_MESH_CALIBRATE")
-        mesh_duration = time.time() - mesh_start
-
-        # --- DATA CAPTURE ---
-        
-        # Access the bed_mesh object to retrieve the last probed matrix
-        bed_mesh = self.printer.lookup_object('bed_mesh')
-        try:
-            # z_mesh contains the last captured matrix in Klipper
-            z_matrix = bed_mesh.z_mesh
-            self.results.append({
-                'time': current_time - self.start_time,
-                'temp': current_temp,
-                'matrix': z_matrix
-            })
-        except Exception as e:
-            logging.error(f"SoakMyBed Error: Could not retrieve mesh data. {str(e)}")
-
-        # --- SCHEDULE NEXT TICK ---
-        
-        # Interval = Mesh duration + 10s safety buffer, rounded up to nearest 5s
-        next_interval = math.ceil((mesh_duration + 10) / 5.0) * 5
-        
-        return eventtime + next_interval
-
-    def _finalize_soak(self, reason):
-        """Clean up state and trigger post-processing."""
+    def cmd_ABORT_SOAK(self, gcmd):
+        if not self.is_running: return
         self.is_running = False
-        self.gcode.respond_info(f"Soak My Bed: {reason}")
-        
-        # Safety: Turn off the bed heater
-        self.gcode.run_script_from_command("M140 S0")
-        
-        self._save_and_plot()
+        self.gcode.respond_info("SOAK ABORTED!")
+        self.gcode.run_script_from_command(f"SET_HEATER_TEMPERATURE HEATER={self.heater} TARGET=0")
 
-    def cmd_CANCEL_SOAK(self, gcmd):
-        """Manually stop the process and generate partial results."""
-        if self.is_running:
-            self._finalize_soak("Interrupted by user.")
-        else:
-            gcmd.respond_info("Soak My Bed: No process currently running.")
+    def cmd__SOAK_AFTER_FIRST(self, gcmd):
+        if not self.is_running: return
+        self.gcode.respond_info(f"Step 2: Heating {self.heater} to {self.temp}C...")
+        self.gcode.run_script_from_command(f"SET_HEATER_TEMPERATURE HEATER={self.heater} TARGET={self.temp}\n_SOAK_LOOP_EVAL")
 
-    def _save_and_plot(self):
-        """Export data to JSON and launch the external Python plotter."""
-        # Save JSON to the standard Klipper log directory
-        log_path = os.path.expanduser("~/printer_data/logs/soak_my_bed_data.json")
-        
+    def cmd__SOAK_LOOP_EVAL(self, gcmd):
+        if not self.is_running: return
         try:
-            with open(log_path, 'w') as f:
-                json.dump(self.results, f)
-            
-            # Paths for the external plotter and the Klipper virtualenv
-            plotter_script = os.path.expanduser("~/soak-my-bed/scripts/plotter.py")
-            venv_python = os.path.expanduser("~/klippy-env/bin/python")
-            
-            # Launch plotter in background to avoid blocking Klipper
-            subprocess.Popen([venv_python, plotter_script, log_path])
-            self.gcode.respond_info("Soak My Bed: Data saved. Generating animation...")
-            
+            sensor_obj = self.printer.lookup_object(self.sensor_name)
+            status = sensor_obj.get_status(self.printer.get_reactor().monotonic())
+            current_temp = status.get('temperature', 0.0)
+        except: return
+
+        if self.is_heating:
+            if current_temp >= self.temp:
+                self.is_heating = False
+                self.soak_start_time = time.time()
+                self.gcode.respond_info(f"Target reached! Soaking for {self.duration_sec/60.0} min.")
+        else:
+            elapsed = time.time() - self.soak_start_time
+            if elapsed >= self.duration_sec:
+                self.is_running = False
+                self.gcode.respond_info("SOAK COMPLETE! Starting Animation...")
+                self.run_plotter()
+                self.gcode.run_script_from_command(f"SET_HEATER_TEMPERATURE HEATER={self.heater} TARGET=0")
+                return 
+            self.gcode.respond_info(f"Soaking... {int(self.duration_sec - elapsed)}s left.")
+
+        self.mesh_start_time = time.time()
+        self.gcode.run_script_from_command(f"{self.mesh_cmd}\n_SOAK_LOOP_WAIT")
+
+    def run_plotter(self):
+        try:
+            # Il plotter ora è autonomo, passiamo SOLO il JSON
+            subprocess.Popen([self.klipper_python, self.plot_script_path, self.json_path])
         except Exception as e:
-            logging.error(f"SoakMyBed: Failed to save or plot results. {str(e)}")
+            self.gcode.respond_info(f"Plotter failed: {e}")
+
+    def cmd__SOAK_LOOP_WAIT(self, gcmd):
+        if not self.is_running: return
+        try:
+            bed_mesh = self.printer.lookup_object('bed_mesh', None)
+            sensor_obj = self.printer.lookup_object(self.sensor_name)
+            eventtime = self.printer.get_reactor().monotonic()
+            current_temp = sensor_obj.get_status(eventtime).get('temperature', 0.0)
+
+            if bed_mesh is not None:
+                mesh_status = bed_mesh.get_status(eventtime)
+                matrix = mesh_status.get('probed_matrix') or mesh_status.get('mesh_matrix', [[]])
+                
+                # CATTURIAMO I LIMITI REALI DELLA MESH
+                mesh_min = mesh_status.get('mesh_min', [0.0, 0.0])
+                mesh_max = mesh_status.get('mesh_max', [300.0, 300.0])
+
+                with open(self.json_path, "r") as f: data = json.load(f)
+                data.append({
+                    "time": time.time() - self.script_start_time, 
+                    "temp": current_temp, 
+                    "matrix": matrix,
+                    "mesh_min": mesh_min,
+                    "mesh_max": mesh_max
+                })
+                with open(self.json_path, "w") as f: json.dump(data, f)
+        except: pass
+
+        mesh_time = time.time() - self.mesh_start_time
+        wait_time = max(1.0, (math.ceil((mesh_time + 3.0) / 5.0) * 5.0) - mesh_time)
+        self.gcode.run_script_from_command(f"G4 P{int(wait_time * 1000)}\n_SOAK_LOOP_EVAL")
 
 def load_config(config):
     return SoakMyBed(config)
