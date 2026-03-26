@@ -1,6 +1,7 @@
 import time
 import math
 import os
+import sys
 import json
 import subprocess
 from datetime import datetime
@@ -31,10 +32,21 @@ class SoakMyBed:
         self.is_heating = False
         self.is_running = False
         
-        # Base paths
-        self.save_dir = "/home/pi/printer_data/config/soak_data"
-        self.plot_script_path = "/home/pi/soak-my-bed/scripts/plotter.py"
-        self.klipper_python = "/home/pi/klippy-env/bin/python"
+        # --- DYNAMIC PATHS FIX ---
+        # Get the current user's home directory automatically (e.g., /home/pi, /home/sovol, /root)
+        home_dir = os.path.expanduser("~")
+        
+        # Default paths using the dynamic home directory
+        default_save_dir = os.path.join(home_dir, "printer_data", "config", "soak_data")
+        default_plot_script = os.path.join(home_dir, "soak-my-bed", "scripts", "plotter.py")
+        
+        # Allow users to override paths in printer.cfg if they have weird setups (like Creality K1C)
+        self.save_dir = config.get('save_dir', default_save_dir)
+        self.plot_script_path = config.get('plot_script_path', default_plot_script)
+        
+        # sys.executable flawlessly returns the absolute path of the Python binary currently running Klipper!
+        self.klipper_python = sys.executable 
+        
         self.json_path = ""
 
     def cmd_SOAK_MY_BED(self, gcmd):
@@ -69,7 +81,7 @@ class SoakMyBed:
                 json.dump([], f) 
             self.gcode.respond_info(f"Logging data to: soak_{timestamp}.json")
         except Exception as e:
-            self.gcode.respond_info(f"Storage error: {e}")
+            self.gcode.respond_info(f"Storage error: {e}. Please check your save_dir permissions or configure a custom save_dir in printer.cfg.")
 
         self.script_start_time = time.time()
         self.soak_start_time = None
