@@ -32,21 +32,20 @@ class SoakMyBed:
         self.is_heating = False
         self.is_running = False
         
-        # --- DYNAMIC PATHS FIX ---
-        # Get the current user's home directory automatically (e.g., /home/pi, /home/sovol, /root)
+        # --- DYNAMIC PATHS & CONFIG FIX ---
         home_dir = os.path.expanduser("~")
         
-        # Default paths using the dynamic home directory
+        # Default paths
         default_save_dir = os.path.join(home_dir, "printer_data", "config", "soak_data")
         default_plot_script = os.path.join(home_dir, "soak-my-bed", "scripts", "plotter.py")
         
-        # Allow users to override paths in printer.cfg if they have weird setups (like Creality K1C)
+        # Load config with safe defaults
         self.save_dir = config.get('save_dir', default_save_dir)
         self.plot_script_path = config.get('plot_script_path', default_plot_script)
+        # New: allow default mesh command to be defined in printer.cfg
+        self.default_mesh_cmd = config.get('mesh_command', 'BED_MESH_CALIBRATE')
         
-        # sys.executable flawlessly returns the absolute path of the Python binary currently running Klipper!
         self.klipper_python = sys.executable 
-        
         self.json_path = ""
 
     def cmd_SOAK_MY_BED(self, gcmd):
@@ -58,9 +57,11 @@ class SoakMyBed:
         self.duration_sec = gcmd.get_float('DURATION', 10.0) * 60.0
         self.heater = gcmd.get('HEATER', 'heater_bed')
         
-        raw_mesh_cmd = gcmd.get('MESH_COMMAND', 'BED_MESH_CALIBRATE METHOD=rapid_scan')
+        # Prioritize G-code parameter, then printer.cfg setting, then absolute default
+        raw_mesh_cmd = gcmd.get('MESH_COMMAND', self.default_mesh_cmd)
         raw_mesh_cmd = raw_mesh_cmd.strip('"\'')
         
+        # Safety: always add PROFILE=soak if not specified to avoid overwriting default mesh
         if "PROFILE=" not in raw_mesh_cmd.upper():
             self.mesh_cmd = f"{raw_mesh_cmd} PROFILE=soak"
         else:
@@ -71,7 +72,6 @@ class SoakMyBed:
         else:
             self.sensor_name = f"heater_generic {self.heater}"
 
-        # Create JSON file with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.json_path = os.path.join(self.save_dir, f"soak_{timestamp}.json")
 
@@ -81,28 +81,25 @@ class SoakMyBed:
                 json.dump([], f) 
             self.gcode.respond_info(f"Logging data to: soak_{timestamp}.json")
         except Exception as e:
-            self.gcode.respond_info(f"Storage error: {e}. Please check your save_dir permissions or configure a custom save_dir in printer.cfg.")
+            self.gcode.respond_info(f"Storage error: {e}")
 
         self.script_start_time = time.time()
         self.soak_start_time = None
         self.is_heating = True
         self.is_running = True
 
-        self.gcode.respond_info("Step 1: Running initial mesh...")
+        self.gcode.respond_info(f"Step 1: Running initial mesh with: {self.mesh_cmd}")
         self.mesh_start_time = time.time()
         self.gcode.run_script_from_command(f"{self.mesh_cmd}\n_SOAK_AFTER_FIRST")
 
+    # ... [Resto del codice invariato] ...
     def cmd_ABORT_SOAK(self, gcmd):
         if not self.is_running:
             self.gcode.respond_info("No SOAK process is currently running.")
             return
-        
-        # Immediate logic abort
         self.is_running = False
         self.is_heating = False
         self.gcode.respond_info("!!! SOAK ABORTED BY USER !!!")
-        
-        # Turn off the heater safely
         self.gcode.run_script_from_command(f"SET_HEATER_TEMPERATURE HEATER={self.heater} TARGET=0")
 
     def cmd__SOAK_AFTER_FIRST(self, gcmd):
@@ -144,22 +141,17 @@ class SoakMyBed:
 
     def cmd__SOAK_LOOP_WAIT(self, gcmd):
         if not self.is_running: return
-        
         reactor = self.printer.get_reactor()
         eventtime = reactor.monotonic()
-        
         try:
             bed_mesh = self.printer.lookup_object('bed_mesh', None)
             sensor_obj = self.printer.lookup_object(self.sensor_name)
             current_temp = sensor_obj.get_status(eventtime).get('temperature', 0.0)
-
             if bed_mesh is not None:
                 mesh_status = bed_mesh.get_status(eventtime)
                 matrix = mesh_status.get('probed_matrix') or mesh_status.get('mesh_matrix', [[]])
-                
                 mesh_min = mesh_status.get('mesh_min', [0.0, 0.0])
                 mesh_max = mesh_status.get('mesh_max', [300.0, 300.0])
-
                 with open(self.json_path, "r") as f: data = json.load(f)
                 data.append({
                     "time": time.time() - self.script_start_time, 
@@ -170,12 +162,8 @@ class SoakMyBed:
                 })
                 with open(self.json_path, "w") as f: json.dump(data, f)
         except: pass
-
-        # Calculate wait time without using G4 (does not block the console)
         mesh_time = time.time() - self.mesh_start_time
         wait_time = max(1.0, (math.ceil((mesh_time + 3.0) / 5.0) * 5.0) - mesh_time)
-        
-        # Register an async timer in Klipper
         reactor.register_timer(self._trigger_next_eval, eventtime + wait_time)
 
     def _trigger_next_eval(self, eventtime):
